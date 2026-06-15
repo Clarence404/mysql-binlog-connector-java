@@ -50,8 +50,10 @@ public class BinaryLogFileReaderIntegrationTest {
 
     @Test
     public void testNextEventCompressed() throws Exception {
+        EventDeserializer eventDeserializer = new EventDeserializer();
+        eventDeserializer.setTransparentlyDecompressTransactions(true);
         BinaryLogFileReader reader = new BinaryLogFileReader(
-            new FileInputStream("src/test/resources/mysql-bin.compressed"));
+            new FileInputStream("src/test/resources/mysql-bin.compressed"), eventDeserializer);
         try {
             List<EventType> types = new ArrayList<EventType>();
             for (Event event; (event = reader.readEvent()) != null; ) {

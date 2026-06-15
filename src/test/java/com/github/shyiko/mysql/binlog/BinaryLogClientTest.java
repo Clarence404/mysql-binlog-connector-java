@@ -348,6 +348,7 @@ public class BinaryLogClientTest {
     // read loop does.
     private static void feedThroughDeserializer(BinaryLogClient client, byte[] eventBytes) throws IOException {
         EventDeserializer deserializer = new EventDeserializer();
+        deserializer.setTransparentlyDecompressTransactions(true);
         ByteArrayInputStream stream = new ByteArrayInputStream(eventBytes);
         Event event;
         while ((event = deserializer.nextEvent(stream)) != null) {

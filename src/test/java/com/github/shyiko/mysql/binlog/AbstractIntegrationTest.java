@@ -40,6 +40,7 @@ public abstract class AbstractIntegrationTest {
         eventDeserializer.setCompatibilityMode(EventDeserializer.CompatibilityMode.CHAR_AND_BINARY_AS_BYTE_ARRAY,
             EventDeserializer.CompatibilityMode.DATE_AND_TIME_AS_LONG);
         client.setEventDeserializer(eventDeserializer);
+        client.setTransparentlyDecompressTransactions(true);
         client.setServerId(client.getServerId() - 1); // avoid clashes between BinaryLogClient instances
         client.setKeepAlive(false);
         client.registerEventListener(new TraceEventListener());

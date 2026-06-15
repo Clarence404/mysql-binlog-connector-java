@@ -30,10 +30,11 @@ import java.io.IOException;
  * in heap).
  *
  * <p>{@link EventDeserializer} keeps one instance and consults {@link #hasPending()} before reading the
- * underlying stream: while a payload is in flight its remaining inner events (and any deferred unpack
- * failure) are emitted through {@link #next()}; only once it is drained does the deserializer read the
- * next event off the stream. {@link #open} starts a payload and returns its first inner event. This is
- * the state machine that would otherwise live directly in {@link EventDeserializer}.
+ * underlying stream: while a payload is in flight its remaining inner events
+ * are emitted through {@link #next()}; only once it is drained does the
+ * deserializer read the next event off the stream. {@link #open} starts a
+ * payload; the caller must then call {@link #next()} to retrieve the first
+ * inner event.
  */
 class TransactionPayloadEventBuffer {
 
@@ -41,55 +42,30 @@ class TransactionPayloadEventBuffer {
     private EventHeader eventHeader;
     private ByteArrayInputStream inputStream;
     private int checksumLength;
-    private IOException deferredFailure;
 
     /**
      * @return {@code true} while a payload opened earlier still has inner events (or a deferred unpack
      * failure) to emit.
      */
     boolean hasPending() {
-        return iterator != null || deferredFailure != null;
+        return iterator != null;
     }
 
     /**
-     * Begins unpacking the {@code TRANSACTION_PAYLOAD} whose body is next on {@code inputStream} and
-     * returns its first inner event. The compressed payload is consumed from {@code inputStream}
-     * incrementally as inner events are pulled (see {@link #next()}), so nothing is prefetched; the
-     * stream is left positioned at the end of the whole envelope (payload + checksum) only once the
-     * payload has been drained.
-     *
-     * @return the first inner event, or - for the degenerate case of a payload carrying no inner events
-     * - the {@link TransactionPayloadEventData} envelope itself, so the caller never mistakes an empty
-     * payload for end-of-stream.
+     * Begins unpacking the {@code TRANSACTION_PAYLOAD} whose body is next on {@code inputStream}.
+     * The compressed payload is consumed from {@code inputStream} incrementally as inner events are
+     * pulled (see {@link #next()}), so nothing is prefetched; the stream is left positioned at the end
+     * of the whole envelope (payload + checksum) only once the payload has been drained. The caller
+     * must call {@link #next()} after this method returns to retrieve the first inner event.
      */
-    Event open(TransactionPayloadEventDataDeserializer deserializer, ByteArrayInputStream inputStream,
+    void open(TransactionPayloadEventDataDeserializer deserializer, ByteArrayInputStream inputStream,
             EventHeader eventHeader, int checksumLength) throws IOException {
         TransactionPayloadEventData eventData = deserializeEnvelope(deserializer, inputStream, eventHeader,
             checksumLength);
         this.eventHeader = eventHeader;
         this.inputStream = inputStream;
         this.checksumLength = checksumLength;
-        try {
-            iterator = deserializer.iterator(eventData);
-            // The cursor now owns the bytes it needs; drop the compressed copy so the event (which a
-            // reader typically pins until the next one arrives) does not also retain the whole payload.
-            eventData.setPayload(null);
-            eventData.setPayloadInputStream(null);
-            Event innerEvent = next();
-            if (innerEvent != null) {
-                return innerEvent;
-            }
-        } catch (IOException | RuntimeException e) {
-            try {
-                close();
-            } catch (IOException closeFailure) {
-                e.addSuppressed(closeFailure);
-            }
-            throw e;
-        }
-        // A payload with no inner events is not expected from MySQL; if it happens, surface the envelope
-        // itself rather than returning null (which a reader would mistake for end-of-stream).
-        return new Event(eventHeader, eventData);
+        this.iterator = deserializer.iterator(eventData);
     }
 
     /**
@@ -99,11 +75,6 @@ class TransactionPayloadEventBuffer {
      * inner-event parse failure.
      */
     Event next() throws IOException {
-        if (deferredFailure != null) {
-            IOException failure = deferredFailure;
-            deferredFailure = null;
-            throw failure;
-        }
         if (iterator == null) {
             return null;
         }
@@ -116,14 +87,10 @@ class TransactionPayloadEventBuffer {
             // Surface it as a plain deserialization failure - never an EOFException/SocketException - so
             // the reader reports it and moves on instead of treating it as a transport failure and
             // reconnecting only to refetch and re-fail on the same payload.
-            IOException failure = new IOException("Failed to deserialize inner event of TRANSACTION_PAYLOAD", e);
-            try {
-                close();
-            } catch (IOException closeFailure) {
-                failure.addSuppressed(closeFailure);
-            }
-            throw failure;
+            close();
+            throw new IOException("Failed to deserialize inner event of TRANSACTION_PAYLOAD", e);
         }
+
         if (innerEvent == null) {
             close();
             return null;
@@ -132,11 +99,7 @@ class TransactionPayloadEventBuffer {
         if (iterator.isExhausted()) {
             try {
                 close();
-            } catch (IOException e) {
-                // Hand back the (valid) event we already hold and report the close/skip failure on the
-                // next call, so inner events stay in order.
-                deferredFailure = e;
-            }
+            } catch (IOException e) { }
         }
         return innerEvent;
     }
@@ -163,29 +126,10 @@ class TransactionPayloadEventBuffer {
     }
 
     private void close() throws IOException {
-        IOException failure = null;
-        if (iterator != null) {
-            try {
-                iterator.close();
-            } catch (IOException e) {
-                failure = e;
-            }
-            iterator = null;
-        }
-        try {
-            finishBlock();
-        } catch (IOException e) {
-            if (failure == null) {
-                failure = e;
-            } else {
-                failure.addSuppressed(e);
-            }
-        } finally {
-            eventHeader = null;
-        }
-        if (failure != null) {
-            throw failure;
-        }
+        iterator.close();
+        iterator = null;
+        eventHeader = null;
+        finishBlock();
     }
 
     // Drains any payload bytes the decompressor did not consume, then the checksum, leaving the stream

@@ -48,9 +48,12 @@ public class EventDeserializer {
     private EventDataDeserializer tableMapEventDataDeserializer;
     private EventDataDeserializer formatDescEventDataDeserializer;
 
-    // Streams the inner events of a TRANSACTION_PAYLOAD out one per nextEvent() call (see nextEvent),
-    // so a compressed transaction is unpacked transparently without materializing its whole image.
     private final TransactionPayloadEventBuffer transactionPayloadBuffer = new TransactionPayloadEventBuffer();
+    private boolean transparentlyDecompressTransactions = false;
+
+    public void setTransparentlyDecompressTransactions(boolean transparentlyDecompressTransactions) {
+        this.transparentlyDecompressTransactions = transparentlyDecompressTransactions;
+    }
 
     public EventDeserializer() {
         this(new EventHeaderV4Deserializer(), new NullEventDataDeserializer());
@@ -254,20 +257,17 @@ public class EventDeserializer {
             case TABLE_MAP:
                 eventData = deserializeTableMapEventData(inputStream, eventHeader);
                 break;
-            case TRANSACTION_PAYLOAD: {
+            case TRANSACTION_PAYLOAD:
                 EventDataDeserializer deserializer = getEventDataDeserializer(EventType.TRANSACTION_PAYLOAD);
-                if (deserializer instanceof TransactionPayloadEventDataDeserializer) {
-                    // Stream the payload's inner events out as ordinary top-level events: the buffer
-                    // returns the first one now and holds the rest for subsequent nextEvent() calls.
-                    return transactionPayloadBuffer.open(
+                if ( transparentlyDecompressTransactions && (deserializer instanceof TransactionPayloadEventDataDeserializer)) {
+                    // Stream the payload's inner events out as ordinary top-level events: open the
+                    // buffer then pull the first inner event; the rest come via subsequent nextEvent() calls.
+                    transactionPayloadBuffer.open(
                         (TransactionPayloadEventDataDeserializer) deserializer, inputStream, eventHeader,
-                        checksumLength);
-                }
-                // A custom deserializer handles the payload its own way; surface the TRANSACTION_PAYLOAD
-                // event as-is (pre-streaming behavior), with any inner table maps registered below.
-                eventData = deserializeTransactionPayloadEventData(inputStream, eventHeader);
-                break;
-            }
+                        checksumLength
+                    );
+                    return transactionPayloadBuffer.next();
+                } // else fall-through to ordinary deserialization
             default:
                 EventDataDeserializer eventDataDeserializer = getEventDataDeserializer(eventHeader.getEventType());
                 eventData = deserializeEventData(inputStream, eventHeader, eventDataDeserializer);
@@ -373,10 +373,6 @@ public class EventDeserializer {
         try {
             inputStream.enterBlock(eventBodyLength);
             try {
-                if (eventBodyLength > Integer.MAX_VALUE) {
-                    throw new IOException("Event data length " + eventBodyLength +
-                        " exceeds the maximum supported size of " + Integer.MAX_VALUE + " bytes");
-                }
                 eventData = eventDataDeserializer.deserialize(inputStream);
             } finally {
                 inputStream.skipToTheEndOfTheBlock();

@@ -172,6 +172,7 @@ public class TransactionPayloadEventDataDeserializerTest {
     @Test
     public void nextEventTransparentlyUnpacksAndRestampsInnerEvents() throws IOException {
         EventDeserializer eventDeserializer = new EventDeserializer();
+        eventDeserializer.setTransparentlyDecompressTransactions(true);
         // A TRANSACTION_PAYLOAD (next-position 12345) wrapping two XIDs, followed by a standalone XID,
         // so we also prove the stream stays aligned once the payload's inner events have been drained.
         byte[] payloadEvent = transactionPayloadEvent(12345L, xidEventBytes(111L), xidEventBytes(222L));
@@ -201,6 +202,7 @@ public class TransactionPayloadEventDataDeserializerTest {
     @Test
     public void nextEventDoesNotPrefetchNextInnerEvent() throws IOException {
         EventDeserializer eventDeserializer = new EventDeserializer();
+        eventDeserializer.setTransparentlyDecompressTransactions(true);
         byte[] firstInnerEvent = xidEventBytes(111L);
         byte[] secondInnerEvent = xidEventBytes(222L);
         byte[] payloadEvent = transactionPayloadEvent(12345L, firstInnerEvent, secondInnerEvent);

@@ -148,6 +148,8 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
     protected Object gtid;
     private boolean tx;
 
+    private boolean transparentlyDecompressTransactions = false;
+
     private EventDeserializer eventDeserializer = new EventDeserializer();
 
     private final List<EventListener> eventListeners = new CopyOnWriteArrayList<EventListener>();
@@ -546,6 +548,19 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
         this.eventDeserializer = eventDeserializer;
     }
 
+    public boolean isTransparentlyDecompressTransactions() {
+        return transparentlyDecompressTransactions;
+    }
+
+    /**
+     * When set to {@code true}, {@code TRANSACTION_PAYLOAD} (zstd-compressed) events are unpacked
+     * transparently and their inner events are emitted as ordinary top-level events. Defaults to
+     * {@code false} (the envelope event is surfaced as-is).
+     */
+    public void setTransparentlyDecompressTransactions(boolean transparentlyDecompressTransactions) {
+        this.transparentlyDecompressTransactions = transparentlyDecompressTransactions;
+    }
+
     /**
      * @param socketFactory custom socket factory. If not provided, socket will be created with "new Socket()".
      */
@@ -713,6 +728,7 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
      * Apply additional options for connection before requesting binlog stream.
      */
     protected void setupConnection() throws IOException {
+        eventDeserializer.setTransparentlyDecompressTransactions(transparentlyDecompressTransactions);
         ChecksumType checksumType = fetchBinlogChecksum();
         if (checksumType != ChecksumType.NONE) {
             confirmSupportOfChecksum(checksumType);
