@@ -26,6 +26,8 @@ import org.testng.annotations.Test;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.zip.GZIPInputStream;
 
 import static org.testng.Assert.assertEquals;
@@ -50,7 +52,21 @@ public class BinaryLogFileReaderIntegrationTest {
     public void testNextEventCompressed() throws Exception {
         BinaryLogFileReader reader = new BinaryLogFileReader(
             new FileInputStream("src/test/resources/mysql-bin.compressed"));
-        readAll(reader, 5);
+        try {
+            List<EventType> types = new ArrayList<EventType>();
+            for (Event event; (event = reader.readEvent()) != null; ) {
+                types.add(event.getHeader().getEventType());
+            }
+            // The single TRANSACTION_PAYLOAD wrapper is unpacked transparently, so its inner events
+            // (BEGIN / TABLE_MAP / row change / XID) surface individually rather than as one opaque,
+            // compressed blob - five top-level events become eight.
+            assertEquals(types.size(), 8);
+            assertFalse(types.contains(EventType.TRANSACTION_PAYLOAD));
+            assertTrue(types.contains(EventType.EXT_UPDATE_ROWS));
+            assertTrue(types.contains(EventType.XID));
+        } finally {
+            reader.close();
+        }
     }
 
     @Test
