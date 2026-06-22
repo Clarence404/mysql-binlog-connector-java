@@ -27,9 +27,9 @@ public class ByteArrayInputStream extends InputStream {
 
     private InputStream inputStream;
     private int peek = -1;
-    private int pos, markPosition;
-    private int blockLength = -1;
-    private int initialBlockLength = -1;
+    private long pos, markPosition;
+    private long blockLength = -1;
+    private long initialBlockLength = -1;
 
     public ByteArrayInputStream(InputStream inputStream) {
         this.inputStream = inputStream;
@@ -201,7 +201,7 @@ public class ByteArrayInputStream extends InputStream {
     @Override
     public int available() throws IOException {
         if (blockLength != -1) {
-            return blockLength;
+            return blockLength > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) blockLength;
         }
         return inputStream.available();
     }
@@ -234,9 +234,12 @@ public class ByteArrayInputStream extends InputStream {
             if (blockLength == 0) {
                 return -1;
             }
+        }
+        int read = inputStream.read();
+        if (read != -1 && blockLength != -1) {
             blockLength--;
         }
-        return inputStream.read();
+        return read;
     }
 
     @Override
@@ -276,7 +279,7 @@ public class ByteArrayInputStream extends InputStream {
             return -1;
         }
 
-        int read = inputStream.read(b, off, Math.min(len, blockLength));
+        int read = inputStream.read(b, off, (int) Math.min((long) len, blockLength));
         if (read > 0) {
             blockLength -= read;
         }
@@ -289,6 +292,10 @@ public class ByteArrayInputStream extends InputStream {
     }
 
     public void enterBlock(int length) {
+        enterBlock((long) length);
+    }
+
+    public void enterBlock(long length) {
         this.blockLength = length < -1 ? -1 : length;
         this.initialBlockLength = length;
     }
@@ -301,6 +308,10 @@ public class ByteArrayInputStream extends InputStream {
     }
 
     public int getPosition() {
+        return pos > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) pos;
+    }
+
+    public long getLongPosition() {
         return pos;
     }
 
@@ -334,12 +345,15 @@ public class ByteArrayInputStream extends InputStream {
         long skipOf = n;
         if (blockLength != -1) {
             skipOf = Math.min(blockLength, skipOf);
-            blockLength -= skipOf;
+        }
+        long skipped = inputStream.skip(skipOf);
+        if (blockLength != -1) {
+            blockLength -= skipped;
             if (blockLength == 0) {
                 blockLength = -1;
             }
         }
-        pos += (int) skipOf;
-        return inputStream.skip(skipOf);
+        pos += skipped;
+        return skipped;
      }
 }

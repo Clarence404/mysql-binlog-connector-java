@@ -28,11 +28,11 @@ import java.nio.charset.Charset;
  * Utility to parse the binary-encoded value of a MySQL {@code JSON} type, translating the encoded representation into
  * method calls on a supplied {@link JsonFormatter} implementation.
  *
- * <h2>Binary Format</h2>
+ * ## Binary Format
  *
  * Each JSON value (scalar, object or array) has a one byte type identifier followed by the actual value.
  *
- * <h3>Scalar</h3>
+ * ### Scalar
  *
  * The binary value may contain a single scalar that is one of:
  * <ul>
@@ -55,7 +55,7 @@ import java.nio.charset.Charset;
  * <li>any other MySQL value encoded as an opaque binary value</li>
  * </ul>
  *
- * <h3>JSON Object</h3>
+ * ### JSON Object
  *
  * If the value is a JSON object, its binary representation will have a header that contains:
  * <ul>
@@ -67,7 +67,7 @@ import java.nio.charset.Charset;
  *
  * The actual keys and values will come after the header, in the same order as in the header.
  *
- * <h3>JSON Array</h3>
+ * ### JSON Array
  *
  * If the value is a JSON array, the binary representation will have a header with
  * <ul>
@@ -269,7 +269,7 @@ public class JsonBinary {
      * <p>
      * The grammar of the binary representation of JSON objects are defined in the MySQL code base in the
      * <a href="https://github.com/mysql/mysql-server/blob/5.7/sql/json_binary.h">json_binary.h</a> file:
-     * <h3>Grammar</h3>
+     * ### Grammar
      *
      * <pre>
      *   value ::=
@@ -427,9 +427,7 @@ public class JsonBinary {
      * <p>
      * The grammar of the binary representation of JSON objects are defined in the MySQL code base in the
      * <a href="https://github.com/mysql/mysql-server/blob/5.7/sql/json_binary.h">json_binary.h</a> file, and are:
-     * <h3>Grammar</h3>
-     *
-     * <h3>Grammar</h3>
+     * ### Grammar
      *
      * <pre>
      *   value ::=
@@ -674,7 +672,7 @@ public class JsonBinary {
      * See the <a href=
      * "https://github.com/mysql/mysql-server/blob/e0e0ae2ea27c9bb76577664845507ef224d362e4/sql/json_binary.cc#L1034">
      * MySQL source code</a> for the logic used in this method.
-     * <h3>Grammar</h3>
+     * ### Grammar
      *
      * <pre>
      *   custom-data ::= custom-type data-length binary-data

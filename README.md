@@ -25,7 +25,8 @@ but ended up as a complete rewrite. Key differences/features:
 - JMX-friendly
 - real-time stats
 - availability in Maven Central
-- no third-party dependencies
+- minimal third-party dependencies
+- transparent MySQL 8.0 `TRANSACTION_PAYLOAD` support for ZSTD-compressed transactions
 - test suite over different versions of MySQL releases
 
 > If you are looking for something similar in other languages - check out
@@ -83,6 +84,10 @@ kick off from a specific filename or position, use `client.setBinlogFilename(fil
 
 > `client.connect()` is blocking (meaning that client will listen for events in the current thread).
 `client.connect(timeout)`, on the other hand, spawns a separate thread.
+
+> MySQL 8.0 `binlog_transaction_compression` is supported transparently. `TRANSACTION_PAYLOAD`
+events are decompressed incrementally and delivered to listeners as their ordinary inner events,
+so consumers continue to see `QUERY`, `TABLE_MAP`, row, and commit events.
 
 
 #### MariaDB
