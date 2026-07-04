@@ -1,4 +1,7 @@
 # Changelog
+## [0.31.0](https://github.com/osheroff/mysql-binlog-connector-java/compare/0.31.0...0.30.3) - 2026-07-04
+
+- Allow for transparent decompression of binlog events
 
 ## [0.30.3](https://github.com/osheroff/mysql-binlog-connector-java/compare/0.30.3...0.30.2) - 2026-01-05
 
